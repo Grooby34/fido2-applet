@@ -1,0 +1,99 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+}
+
+group = 'de.grooby34.masterthesis'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+    // Maven repository for JavaCard SDKs
+    maven { url 'https://mvnrepository.com/artifact' }
+    maven {
+        url 'https://oss.sonatype.org/content/repositories/snapshots/'
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+dependencies {
+    // JavaCard API - Choose the appropriate version
+    // implementation 'com.github.martinpaljak:oracle_javacard_sdks:3.0.5'
+    implementation 'commons-codec:commons-codec:1.15'
+
+    // Alternative JavaCard API (if the above doesn't work)
+    compileOnly files('oracle-java-card-sdks/jc305u4_kit/lib/api_classic.jar')
+
+    // jCardSim for testing JavaCard applets
+    //testImplementation files('libs/jcardsim-3.0.5-20230313.131323-6.jar')
+    //testImplementation 'com.licel:jcardsim:3.0.5-SNAPSHOT'
+    testImplementation("com.klinec:jcardsim:3.0.5.11")
+
+    // JUnit 5 for unit testing
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // AssertJ for fluent assertions
+    testImplementation 'org.assertj:assertj-core:3.24.2'
+
+    // Bouncy Castle for cryptographic operations
+    testImplementation 'org.bouncycastle:bcprov-jdk18on:1.77'
+
+    // CBOR library for FIDO2 protocol testing
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.15.2'
+
+    // Additional CBOR library (alternative)
+    testImplementation 'com.upokecenter:cbor:4.5.2'
+
+    // Mockito for mocking in tests
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:4.11.0'
+}
+
+test {
+    useJUnitPlatform()
+
+    // Configure test logging
+    testLogging {
+        events "passed", "skipped", "failed", "standardOut", "standardError"
+        exceptionFormat "full"
+        showStandardStreams = true
+    }
+
+    // JVM arguments for testing
+    jvmArgs '-Xmx1024m'
+
+    // System properties for tests
+    systemProperties = [
+            'junit.jupiter.execution.parallel.enabled': 'false'
+    ]
+}
+
+// Jacoco test coverage
+jacoco {
+    toolVersion = "0.8.8"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                    // Exclude utility classes from coverage
+                    '**/utils/**',
+                    '**/test/**'
+            ])
+        }))
+    }
+}

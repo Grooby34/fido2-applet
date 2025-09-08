@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="JavaCard Fido2 Applet" default="buildCap" basedir=".">
+    <description>Builds the project.</description>
+    <target name="buildCap" description="Build the JavaCard CAP-file" depends="clean">
+        <mkdir dir="build"/>
+        <taskdef name="javacard" classname="pro.javacard.ant.JavaCard" classpath="ant-javacard.jar"/>
+        <javacard jckit="oracle-java-card-sdks/jc305u4_kit">
+            <cap aid="445453454300000301" sources="src/main" output="build/Fido2Applet.cap" version="1.0">
+                <applet class="de.grooby34.masterthesis.FIDO2Applet" aid="44545345430000030102"/>
+                <import jar="libs/gpapi-globalplatform.jar" exps="exps"/>
+            </cap>
+        </javacard>
+    </target>
+    <target name="clean" description="remove build dir and its contents">
+        <delete dir="build"/>
+    </target>
+</project>
