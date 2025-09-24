@@ -4,6 +4,7 @@ import javacard.framework.APDU;
 import javacard.framework.Applet;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
@@ -12,7 +13,6 @@ import javacard.security.KeyPair;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
 import javacard.security.Signature;
-import org.apache.commons.codec.binary.Hex;
 
 /**
  * FIDO2 JavaCard Applet with complete CBOR parsing implementation
@@ -25,54 +25,6 @@ import org.apache.commons.codec.binary.Hex;
  * @since JavaCard 3.0.5
  */
 public class FIDO2Applet extends Applet {
-
-    // CTAP2 Command Constants
-    private static final byte CTAP2_MAKE_CREDENTIAL = 0x01;
-    private static final byte CTAP2_GET_ASSERTION = 0x02;
-    private static final byte CTAP2_GET_INFO = 0x04;
-    private static final byte CTAP2_CLIENT_PIN = 0x06;
-    private static final byte CTAP2_RESET = 0x07;
-
-    // CTAP2 Error Codes
-    private static final short CTAP2_OK = 0x00;
-    private static final short CTAP2_ERR_INVALID_COMMAND = 0x01;
-    private static final short CTAP2_ERR_INVALID_PARAMETER = 0x02;
-    private static final short CTAP2_ERR_INVALID_LENGTH = 0x03;
-    private static final short CTAP2_ERR_INVALID_SEQ = 0x04;
-    private static final short CTAP2_ERR_TIMEOUT = 0x05;
-    private static final short CTAP2_ERR_CHANNEL_BUSY = 0x06;
-    private static final short CTAP2_ERR_LOCK_REQUIRED = 0x0A;
-    private static final short CTAP2_ERR_INVALID_CHANNEL = 0x0B;
-    private static final short CTAP2_ERR_CBOR_UNEXPECTED_TYPE = 0x11;
-    private static final short CTAP2_ERR_INVALID_CBOR = 0x12;
-    private static final short CTAP2_ERR_MISSING_PARAMETER = 0x14;
-    private static final short CTAP2_ERR_LIMIT_EXCEEDED = 0x15;
-    private static final short CTAP2_ERR_UNSUPPORTED_EXTENSION = 0x16;
-    private static final short CTAP2_ERR_CREDENTIAL_EXCLUDED = 0x19;
-    private static final short CTAP2_ERR_PROCESSING = 0x21;
-    private static final short CTAP2_ERR_INVALID_CREDENTIAL = 0x22;
-    private static final short CTAP2_ERR_USER_ACTION_PENDING = 0x23;
-    private static final short CTAP2_ERR_OPERATION_PENDING = 0x24;
-    private static final short CTAP2_ERR_NO_OPERATIONS = 0x25;
-    private static final short CTAP2_ERR_UNSUPPORTED_ALGORITHM = 0x26;
-    private static final short CTAP2_ERR_OPERATION_DENIED = 0x27;
-    private static final short CTAP2_ERR_KEY_STORE_FULL = 0x28;
-    private static final short CTAP2_ERR_NO_OPERATION_PENDING = 0x2A;
-    private static final short CTAP2_ERR_UNSUPPORTED_OPTION = 0x2B;
-    private static final short CTAP2_ERR_INVALID_OPTION = 0x2C;
-    private static final short CTAP2_ERR_KEEPALIVE_CANCEL = 0x2D;
-    private static final short CTAP2_ERR_NO_CREDENTIALS = 0x2E;
-
-    // FIDO2 Algorithm Constants
-    private static final short ALG_ES256 = -7; // ECDSA P-256 with SHA-256
-    private static final short ALG_RS256 = -257; // RSASSA-PKCS1-v1_5 with SHA-256
-    // AAGUID for this authenticator (16 bytes)
-    private static final byte[] AAGUID = {
-            (byte) 0x12, (byte) 0x34, (byte) 0x56, (byte) 0x78,
-            (byte) 0x9A, (byte) 0xBC, (byte) 0xDE, (byte) 0xF0,
-            (byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44,
-            (byte) 0x55, (byte) 0x66, (byte) 0x77, (byte) 0x88
-    };
 
     // String constants
     protected static final byte[] TXT_FMT = {'f', 'm', 't'};
@@ -90,7 +42,30 @@ public class FIDO2Applet extends Applet {
     protected static final byte[] TXT_RK = {'r', 'k'};
     protected static final byte[] TXT_UP = {'u', 'p'};
     protected static final byte[] TXT_NONE = {'n', 'o', 'n', 'e'};
+    // CTAP2 Command Constants
+    private static final byte CTAP2_MAKE_CREDENTIAL = 0x01;
+    private static final byte CTAP2_GET_ASSERTION = 0x02;
+    private static final byte CTAP2_RESET = 0x07;
+    // CTAP2 Error Codes
+    private static final short CTAP2_OK = 0x00;
+    private static final short CTAP2_ERR_INVALID_COMMAND = 0x01;
+    private static final short CTAP2_ERR_INVALID_CBOR = 0x12;
+    private static final short CTAP2_ERR_MISSING_PARAMETER = 0x14;
+    private static final short CTAP2_ERR_PROCESSING = 0x21;
+    private static final short CTAP2_ERR_INVALID_CREDENTIAL = 0x22;
+    private static final short CTAP2_ERR_KEY_STORE_FULL = 0x28;
+    private static final short CTAP2_ERR_NO_CREDENTIALS = 0x2E;
+    // FIDO2 Algorithm Constants
+    private static final short ALG_ES256 = -7; // ECDSA P-256 with SHA-256
+    private static final short ALG_RS256 = -257; // RSASSA-PKCS1-v1_5 with SHA-256
 
+    // AAGUID for this authenticator (16 bytes)
+    private static final byte[] AAGUID = {
+            (byte) 0x12, (byte) 0x34, (byte) 0x56, (byte) 0x78,
+            (byte) 0x9A, (byte) 0xBC, (byte) 0xDE, (byte) 0xF0,
+            (byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44,
+            (byte) 0x55, (byte) 0x66, (byte) 0x77, (byte) 0x88
+    };
     // Instance variables
     private CBORParser cborParser;
     private CBOREncoder cborEncoder;
@@ -159,9 +134,6 @@ public class FIDO2Applet extends Applet {
                 case CTAP2_GET_ASSERTION:
                     processGetAssertion(apdu);
                     break;
-                case CTAP2_GET_INFO:
-                    processGetInfo(apdu);
-                    break;
                 case CTAP2_RESET:
                     processReset(apdu);
                     break;
@@ -180,6 +152,7 @@ public class FIDO2Applet extends Applet {
     private void processMakeCredential(APDU apdu) {
         byte[] buffer = apdu.getBuffer();
 
+        JCSystem.beginTransaction();
         try {
             // Get command data
             short bytesRead = apdu.setIncomingAndReceive();
@@ -249,15 +222,13 @@ public class FIDO2Applet extends Applet {
                         // Parse user map - extract user.id
                         short userMapLength = cborParser.getLastMapLength();
                         for (short j = 0; j < userMapLength; j++) {
-                            byte[] userKey = new byte[20];
+                            byte[] userKey = new byte[12];
                             short userKeyLen = cborParser.parseTextStringKey(userKey, (short) 0, (short) 12);
-                            System.out.println(Hex.encodeHexString(userKey));
-                            System.out.println(userKeyLen);
+
                             if (userKeyLen == 2 &&
                                     userKey[0] == 'i' && userKey[1] == 'd') {
                                 // Found "id" field
                                 userIdLength = cborParser.parseByteString(userId, (short) 0, (short) 64);
-                                System.out.println(Hex.encodeHexString(userId));
                                 hasUser = true;
                             } else {
                                 // Skip other user fields (name, displayName)
@@ -265,7 +236,6 @@ public class FIDO2Applet extends Applet {
                             }
                         }
                         break;
-                        // 6432566959585630614735706279316E64584A6C
 
                     case 4: // pubKeyCredParams
                         if (!cborParser.expectArrayStart()) {
@@ -328,16 +298,13 @@ public class FIDO2Applet extends Applet {
             }
 
             // Generate RP ID hash
-            sha256.update(rpId, (short) 0, rpIdLength);
-            sha256.doFinal(null, (short) 0, (short) 0, rpIdHash, (short) 0);
+            sha256.doFinal(rpId, (short) 0, rpIdLength, rpIdHash, (short) 0);
 
             // Generate user ID hash for storage
-            sha256.update(userId, (short) 0, userIdLength);
-            sha256.doFinal(null, (short) 0, (short) 0, userIdHash, (short) 0);
+            sha256.doFinal(userId, (short) 0, userIdLength, userIdHash, (short) 0);
 
-            // Generate new credential ID // TODO: remove static credential id
-            //randomData.generateData(credentialId, (short) 0, (short) 32);
-            credentialId = new byte[] {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F};
+            // Generate new credential ID
+            randomData.generateData(credentialId, (short) 0, (short) 32);
 
             // Generate new key pair
             KeyPair keyPair = new KeyPair(KeyPair.ALG_EC_FP, KeyBuilder.LENGTH_EC_FP_256);
@@ -361,31 +328,26 @@ public class FIDO2Applet extends Applet {
 
             // Create authenticator data with attested credential data
             short authDataLength = createAuthenticatorDataWithAttestedCred(
-                    rpIdHash, (byte) 0x41, credentialId, publicKey, tempBuffer, (short) 0
+                    rpIdHash, (byte) 0x45, credentialId, publicKey, credentialIndex, tempBuffer, (short) 0
             );
 
             // Create attestation object with proper CBOR encoding
             cborEncoder.init(buffer, (short) 0, (short) buffer.length);
 
-            // Encode attestation object map with 2 entries: {fmt, authData}
-            cborEncoder.encodeMapStart((short) 2);
-
-            // "fmt": "none"
-            cborEncoder.encodeTextString(TXT_FMT, (short) 0, (short) 3);
-            cborEncoder.encodeTextString(TXT_NONE, (short) 0, (short) 4);
-
-            // "authData": <authenticator data>
-            cborEncoder.encodeTextString(TXT_AUTHDATA, (short) 0, (short) 8);
-            cborEncoder.encodeByteString(tempBuffer, (short) 0, authDataLength);
+            // Encode attestation object map
+            cborEncoder.encodeNoneAttestationObject(tempBuffer, authDataLength);
 
             // "attStmt": <attestation statement>
             // cborEncoder.encodeTextString("attStmt".getBytes(), (short) 0, (short) 7);
             // encodeAttestationStatement(cborEncoder, clientDataHash, tempBuffer, authDataLength, privateKey);
 
+            JCSystem.commitTransaction();
+
             // Send successful response
-            sendCTAP2Response(apdu, CTAP2_OK, buffer, (short) 0, cborEncoder.getPosition());
+            sendCTAP2Response(apdu, CTAP2_OK, cborEncoder.getBuffer(), (short) 0, cborEncoder.getPosition());
 
         } catch (Exception e) {
+            JCSystem.abortTransaction();
             sendCTAP2Error(apdu, CTAP2_ERR_PROCESSING);
         }
     }
@@ -399,9 +361,10 @@ public class FIDO2Applet extends Applet {
         try {
             short bytesRead = apdu.setIncomingAndReceive();
 
+            JCSystem.beginTransaction();
+
             // Initialize CBOR parser
             cborParser.init(buffer, ISO7816.OFFSET_CDATA, bytesRead);
-
             // Parse CTAP2 getAssertion parameters
             if (!cborParser.expectMapStart()) {
                 sendCTAP2Error(apdu, CTAP2_ERR_INVALID_CBOR);
@@ -453,7 +416,7 @@ public class FIDO2Applet extends Applet {
                                         short credKeyLen = cborParser.parseTextStringKey(credKey, (short) 0, (short) 4);
 
                                         if (credKeyLen == 2 && credKey[0] == 'i' && credKey[1] == 'd') {
-                                            byte[]  tmpCredID = new byte[32];
+                                            byte[] tmpCredID = new byte[32];
                                             // Found "id" field - extract credential ID
                                             short credIdLen = cborParser.parseByteString(
                                                     tmpCredID,
@@ -462,8 +425,8 @@ public class FIDO2Applet extends Applet {
                                                     (short) 32
                                             );
                                             if (credIdLen == 32) {
-                                                short writeOffset = (short)(j * 32);
-                                                Util.arrayCopy(tmpCredID, (short) 0, allowedCredentialIds, writeOffset, (short)32);
+                                                short writeOffset = (short) (j * 32);
+                                                Util.arrayCopy(tmpCredID, (short) 0, allowedCredentialIds, writeOffset, (short) 32);
                                                 foundCredId = true;
                                             }
                                         } else if (credKeyLen == 4 &&
@@ -518,8 +481,7 @@ public class FIDO2Applet extends Applet {
             }
 
             // Generate RP ID hash
-            sha256.update(rpId, (short) 0, rpIdLength);
-            sha256.doFinal(null, (short) 0, (short) 0, rpIdHash, (short) 0);
+            sha256.doFinal(rpId, (short) 0, rpIdLength, rpIdHash, (short) 0);
 
             short credIndex = -1;
 
@@ -527,8 +489,8 @@ public class FIDO2Applet extends Applet {
                 // Use allowList to find matching credential
                 for (short i = 0; i < allowedCredentialCount; i++) {
                     byte[] tmpCredID = new byte[32];
-                    short readOffset = (short)(i * 32);
-                    Util.arrayCopy(allowedCredentialIds, readOffset, tmpCredID, (short)0, (short)32);
+                    short readOffset = (short) (i * 32);
+                    Util.arrayCopy(allowedCredentialIds, readOffset, tmpCredID, (short) 0, (short) 32);
 
                     short foundIndex = credentialStorage.findCredentialById(
                             tmpCredID, (short) 0
@@ -577,115 +539,40 @@ public class FIDO2Applet extends Applet {
             }
 
             ECPrivateKey privateKey = credentialStorage.getPrivateKey(credIndex);
-            ECPublicKey publicKey = credentialStorage.getPublicKey(credIndex);
 
             // Get credential ID for response
             credentialStorage.getCredentialId(credIndex, credentialId, (short) 0);
 
-            // Create authenticator data with attested credential data
-            //short authDataLength = createAuthenticatorDataWithAttestedCred(
-            //        rpIdHash, (byte) 0x01, credentialId, publicKey, tempBuffer, (short) 0
-            //);
-
             // Use simple authenticator data (37 bytes vs 164+ bytes)
             short authDataLength = createSimpleAuthenticatorData(
-                    rpIdHash, (byte) 0x01, tempBuffer, (short) 0
+                    rpIdHash, (byte) 0x01, credIndex, tempBuffer, (short) 0
             );
 
             // Create assertion signature over authData || clientDataHash
             short signatureDataLength = (short) (authDataLength + 32);
-
             Util.arrayCopy(clientDataHash, (short) 0, tempBuffer, authDataLength, (short) 32);
-
             ecdsaSignature.init(privateKey, Signature.MODE_SIGN);
+
             short sigLength = ecdsaSignature.sign(tempBuffer, (short) 0, signatureDataLength,
                     signatureBuffer, (short) 0);
 
+
             // Build CBOR response
             cborEncoder.init(buffer, (short) 0, (short) buffer.length);
-            cborEncoder.encodeMapStart((short) 3);
+            cborEncoder.encodeAssertionResponse(credentialId, tempBuffer, authDataLength, signatureBuffer, sigLength);
 
-            // Field 1: credential
-            cborEncoder.encodeInteger((short) 1);
-            cborEncoder.encodeMapStart((short) 2);
-
-            // credential.type = "public-key"
-            cborEncoder.encodeTextString(TXT_TYPE, (short) 0, (short) 4);
-            cborEncoder.encodeTextString(TXT_PUBKEY, (short) 0, (short) 10);
-
-            // credential.id = credentialId
-            cborEncoder.encodeTextString(TXT_ID, (short) 0, (short) 2);
-            cborEncoder.encodeByteString(credentialId, (short) 0, (short) 32);
-
-            // Field 2: authData
-            cborEncoder.encodeInteger((short) 2);
-            cborEncoder.encodeByteString(tempBuffer, (short) 0, authDataLength);
-
-            // Field 3: signature
-            cborEncoder.encodeInteger((short) 3);
-            cborEncoder.encodeByteString(signatureBuffer, (short) 0, sigLength);
+            JCSystem.commitTransaction();
 
             // Send successful response
-            sendCTAP2Response(apdu, CTAP2_OK, buffer, (short) 0, cborEncoder.getPosition());
+            sendCTAP2Response(apdu, CTAP2_OK, cborEncoder.getBuffer(), (short) 0, cborEncoder.getPosition());
 
         } catch (Exception e) {
+            JCSystem.abortTransaction();
+
             sendCTAP2Error(apdu, CTAP2_ERR_PROCESSING);
         }
     }
 
-    /**
-     * Process CTAP2 getInfo command
-     */
-    private void processGetInfo(APDU apdu) {
-        byte[] buffer = apdu.getBuffer();
-
-        try {
-            // Build getInfo response with CBOR encoding
-            cborEncoder.init(buffer, (short) 0, (short) buffer.length);
-            cborEncoder.encodeMapStart((short) 5);
-
-            // Field 1: versions
-            cborEncoder.encodeInteger((short) 1);
-            cborEncoder.encodeArrayStart((short) 2);
-            cborEncoder.encodeTextString(TXT_FIDO20, (short) 0, (short) 8);
-            cborEncoder.encodeTextString(TXT_FIDO21, (short) 0, (short) 8);
-
-            // Field 3: aaguid
-            cborEncoder.encodeInteger((short) 3);
-            cborEncoder.encodeByteString(AAGUID, (short) 0, (short) 16);
-
-            // Field 4: options
-            cborEncoder.encodeInteger((short) 4);
-            cborEncoder.encodeMapStart((short) 3);
-
-            // plat: false
-            cborEncoder.encodeTextString(TXT_PLAT, (short) 0, (short) 4);
-            cborEncoder.encodeBoolean(false);
-
-            // rk: true (supports resident keys)
-            cborEncoder.encodeTextString(TXT_RK, (short) 0, (short) 2);
-            cborEncoder.encodeBoolean(true);
-
-            // up: true (supports user presence)
-            cborEncoder.encodeTextString(TXT_UP, (short) 0, (short) 2);
-            cborEncoder.encodeBoolean(true);
-
-            // Field 5: maxMsgSize
-            cborEncoder.encodeInteger((short) 5);
-            cborEncoder.encodeInteger((short) 1024);
-
-            // Field 6: pinProtocols
-            cborEncoder.encodeInteger((short) 6);
-            cborEncoder.encodeArrayStart((short) 1);
-            cborEncoder.encodeInteger((short) 1); // PIN protocol v1
-
-            // Send successful response
-            sendCTAP2Response(apdu, CTAP2_OK, buffer, (short) 0, cborEncoder.getPosition());
-
-        } catch (Exception e) {
-            sendCTAP2Error(apdu, CTAP2_ERR_PROCESSING);
-        }
-    }
 
     /**
      * Process CTAP2 reset command
@@ -708,7 +595,7 @@ public class FIDO2Applet extends Applet {
      * Create authenticator data with attested credential data for makeCredential
      */
     private short createAuthenticatorDataWithAttestedCred(
-            byte[] rpIdHash, byte flags, byte[] credId, ECPublicKey pubKey,
+            byte[] rpIdHash, byte flags, byte[] credId, ECPublicKey pubKey, short credentialIndex,
             byte[] output, short offset) {
 
         short pos = offset;
@@ -721,10 +608,10 @@ public class FIDO2Applet extends Applet {
         output[pos++] = flags;
 
         // Signature counter (4 bytes, big-endian)
-        output[pos++] = 0x00;
-        output[pos++] = 0x00;
-        output[pos++] = 0x00;
-        output[pos++] = 0x01;
+        credentialStorage.getAndIncrementSignatureCounter(credentialIndex, output, pos);
+
+        // increase pos by 4 because of the addition of the signature counter
+        pos += 4;
 
         // Attested credential data
         // AAGUID (16 bytes)
@@ -749,7 +636,7 @@ public class FIDO2Applet extends Applet {
      * Create simple authenticator data for getAssertion (without attested credential data)
      */
     private short createSimpleAuthenticatorData(
-            byte[] rpIdHash, byte flags, byte[] output, short offset) {
+            byte[] rpIdHash, byte flags, short credentialIndex, byte[] output, short offset) {
 
         short pos = offset;
 
@@ -761,10 +648,10 @@ public class FIDO2Applet extends Applet {
         output[pos++] = flags;
 
         // Signature counter (4 bytes, big-endian) - increment for each assertion
-        output[pos++] = 0x00;
-        output[pos++] = 0x00;
-        output[pos++] = 0x00;
-        output[pos++] = 0x01;
+        credentialStorage.getAndIncrementSignatureCounter(credentialIndex, output, pos);
+
+        // increase pos by 4 because of the addition of the signature counter
+        pos += 4;
 
         return (short) (pos - offset);
     }
@@ -780,33 +667,36 @@ public class FIDO2Applet extends Applet {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
 
-        // Use encoder to create COSE key map
-        CBOREncoder keyEncoder = new CBOREncoder(output, offset, (short) (output.length - offset));
+        CBOREncoder encoder = new CBOREncoder();
 
+        // Use encoder to create COSE key map
+        encoder.init(output, offset, (short) (output.length - offset));
         // COSE Key map with 5 fields
-        keyEncoder.encodeMapStart((short) 5);
+        encoder.encodeMapStart((short) 5);
 
         // kty: 2 (EC2)
-        keyEncoder.encodeInteger((short) 1);
-        keyEncoder.encodeInteger((short) 2);
+        encoder.encodeInteger((short) 1);
+        encoder.encodeInteger((short) 2);
 
         // alg: -7 (ES256)
-        keyEncoder.encodeInteger((short) 3);
-        keyEncoder.encodeInteger((short) -7);
+        encoder.encodeInteger((short) 3);
+        encoder.encodeInteger((short) -7);
 
         // crv: 1 (P-256)
-        keyEncoder.encodeInteger((short) -1);
-        keyEncoder.encodeInteger((short) 1);
+        encoder.encodeInteger((short) -1);
+        encoder.encodeInteger((short) 1);
 
         // x coordinate (32 bytes)
-        keyEncoder.encodeInteger((short) -2);
-        keyEncoder.encodeByteString(pubKeyData, (short) 1, (short) 32);
+        encoder.encodeInteger((short) -2);
+        encoder.encodeByteString(pubKeyData, (short) 1, (short) 32);
 
         // y coordinate (32 bytes)
-        keyEncoder.encodeInteger((short) -3);
-        keyEncoder.encodeByteString(pubKeyData, (short) 33, (short) 32);
+        encoder.encodeInteger((short) -3);
+        encoder.encodeByteString(pubKeyData, (short) 33, (short) 32);
 
-        return (short) (keyEncoder.getPosition() - offset);
+        Util.arrayCopy(encoder.getBuffer(), (short) 0, output, (short) 0, encoder.getEncodedLength());
+
+        return (short) (encoder.getPosition() - offset);
     }
 
     /**
@@ -844,9 +734,9 @@ public class FIDO2Applet extends Applet {
         byte[] buffer = apdu.getBuffer();
 
         // Move data to start of buffer if needed
-        if (offset != 0) {
-            Util.arrayCopy(data, offset, buffer, (short) 0, length);
-        }
+        //if (offset != 0) {
+        Util.arrayCopy(data, offset, buffer, (short) 0, length);
+        //}
 
         // Prepend status code
         if (length > 0) {
@@ -864,21 +754,5 @@ public class FIDO2Applet extends Applet {
         byte[] buffer = apdu.getBuffer();
         buffer[0] = (byte) errorCode;
         apdu.setOutgoingAndSend((short) 0, (short) 1);
-    }
-
-    /**
-     * Compute hash for credential lookup
-     */
-    private void computeHash(byte[] input, short inputOffset, short inputLength,
-                             byte[] output, short outputOffset) {
-        sha256.update(input, inputOffset, inputLength);
-        sha256.doFinal(null, (short) 0, (short) 0, output, outputOffset);
-    }
-
-    /**
-     * Generate secure random credential ID
-     */
-    private void generateCredentialId(byte[] output, short offset) {
-        randomData.generateData(output, offset, (short) 32);
     }
 }

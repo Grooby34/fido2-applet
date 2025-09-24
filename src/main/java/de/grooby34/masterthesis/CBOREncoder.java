@@ -11,6 +11,7 @@ import static de.grooby34.masterthesis.FIDO2Applet.TXT_FIDO20;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_FIDO21;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_FMT;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_ID;
+import static de.grooby34.masterthesis.FIDO2Applet.TXT_NONE;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_PACKED;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_PLAT;
 import static de.grooby34.masterthesis.FIDO2Applet.TXT_PUBKEY;
@@ -65,20 +66,9 @@ public class CBOREncoder {
      * Default constructor
      */
     public CBOREncoder() {
-        this.buffer = null;
+        this.buffer = new byte[512];
         this.position = 0;
         this.bufferLength = 0;
-    }
-
-    /**
-     * Constructor with buffer initialization
-     *
-     * @param outputBuffer Output buffer for encoded data
-     * @param offset       Start offset in buffer
-     * @param length       Available buffer length
-     */
-    public CBOREncoder(byte[] outputBuffer, short offset, short length) {
-        init(outputBuffer, offset, length);
     }
 
     /**
@@ -89,7 +79,7 @@ public class CBOREncoder {
      * @param length       Available buffer length
      */
     public void init(byte[] outputBuffer, short offset, short length) {
-        this.buffer = outputBuffer;
+        Util.arrayCopy(outputBuffer, (short) 0, buffer, (short) 0, length);
         this.position = offset;
         this.bufferLength = (short) (offset + length);
     }
@@ -122,7 +112,7 @@ public class CBOREncoder {
             encodeLength(MAJOR_TYPE_UNSIGNED_INT, value);
         } else {
             // Encode negative integer
-            short positiveValue = (short) (-(short)(value + 1));
+            short positiveValue = (short) (-(short) (value + 1));
             encodeLength(MAJOR_TYPE_NEGATIVE_INT, positiveValue);
         }
     }
@@ -237,19 +227,21 @@ public class CBOREncoder {
     }
 
     /**
+     * Get current buffer
+     *
+     * @return Current output buffer
+     */
+    public byte[] getBuffer() {
+        return buffer;
+    }
+
+    /**
      * Get number of bytes encoded so far
      *
      * @return Number of bytes encoded since last init()
      */
     public short getEncodedLength() {
         return position; // Assumes init was called with offset 0
-    }
-
-    /**
-     * Reset encoder to initial state
-     */
-    public void reset() {
-        position = 0;
     }
 
     /**
@@ -287,6 +279,27 @@ public class CBOREncoder {
     }
 
     /**
+     * Encode FIDO2 attestation object in none format
+     *
+     * @param authData       Authenticator data
+     * @param authDataLength Length of authenticator data
+     */
+    public void encodeNoneAttestationObject(byte[] authData, short authDataLength) {
+        // Encode map with 2 entries: fmt, authData
+
+        // Encode attestation object map with 2 entries: {fmt, authData}
+        encodeMapStart((short) 2);
+
+        // "fmt": "none"
+        encodeTextString(TXT_FMT, (short) 0, (short) 3);
+        encodeTextString(TXT_NONE, (short) 0, (short) 4);
+
+        // "authData": <authenticator data>
+        encodeTextString(TXT_AUTHDATA, (short) 0, (short) 8);
+        encodeByteString(authData, (short) 0, authDataLength);
+    }
+
+    /**
      * Encode FIDO2 assertion response
      *
      * @param credentialId   Credential ID used for assertion
@@ -320,54 +333,5 @@ public class CBOREncoder {
         // Field 3: signature
         encodeInteger((short) 3);
         encodeByteString(signature, (short) 0, sigLength);
-    }
-
-    /**
-     * Encode FIDO2 getInfo response
-     */
-    public void encodeGetInfoResponse() {
-        // Standard FIDO2 authenticator info
-        encodeMapStart((short) 5);
-
-        // Field 1: versions
-        encodeInteger((short) 1);
-        encodeArrayStart((short) 2);
-        encodeTextString(TXT_FIDO20, (short) 0, (short) 8);
-        encodeTextString(TXT_FIDO21, (short) 0, (short) 8);
-
-        // Field 3: aaguid (using placeholder AAGUID)
-        encodeInteger((short) 3);
-        byte[] aaguid = {
-                (byte) 0x12, (byte) 0x34, (byte) 0x56, (byte) 0x78,
-                (byte) 0x9A, (byte) 0xBC, (byte) 0xDE, (byte) 0xF0,
-                (byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44,
-                (byte) 0x55, (byte) 0x66, (byte) 0x77, (byte) 0x88
-        };
-        encodeByteString(aaguid, (short) 0, (short) 16);
-
-        // Field 4: options
-        encodeInteger((short) 4);
-        encodeMapStart((short) 3);
-
-        // plat: false (not a platform authenticator)
-        encodeTextString(TXT_PLAT, (short) 0, (short) 4);
-        encodeBoolean(false);
-
-        // rk: true (supports resident keys)
-        encodeTextString(TXT_RK, (short) 0, (short) 2);
-        encodeBoolean(true);
-
-        // up: true (supports user presence)
-        encodeTextString(TXT_UP, (short) 0, (short) 2);
-        encodeBoolean(true);
-
-        // Field 5: maxMsgSize
-        encodeInteger((short) 5);
-        encodeInteger((short) 1024);
-
-        // Field 6: pinProtocols
-        encodeInteger((short) 6);
-        encodeArrayStart((short) 1);
-        encodeInteger((short) 1); // PIN protocol v1
     }
 }

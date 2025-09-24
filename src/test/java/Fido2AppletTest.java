@@ -3,7 +3,9 @@ import com.licel.jcardsim.utils.AIDUtil;
 import com.upokecenter.cbor.CBORObject;
 import de.grooby34.masterthesis.FIDO2Applet;
 import javacard.framework.AID;
+import javacard.framework.Util;
 import org.apache.commons.codec.binary.Hex;
+import org.bouncycastle.util.encoders.Base64;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class Fido2AppletTest {
-    private static final byte[] AID = {(byte) 0xA0, 0x00, 0x00, 0x00, 0x62, 0x03, 0x01, 0x0C, 0x06}; // your FIDO2 AID
+    private static final byte[] AID = {(byte) 0xA0, 0x00, 0x00, 0x00, 0x62, 0x03, 0x01, 0x0C, 0x06};
     private CardSimulator simulator;
     private AID appletAID;
 
@@ -38,14 +40,6 @@ public class Fido2AppletTest {
         return resp;
     }
 
-   /* @Test
-    public void testGetInfo() throws Exception {
-        // CTAP2 INS = 0x04
-        ResponseAPDU resp = transmit((byte)0x00, (byte)0x04, (byte)0x00, (byte)0x00, null);
-        assertEquals(0x9000, resp.getSW());
-        // further parse resp.getData() for versions, options, aaguid...
-    }*/
-
     @Test
     public void testMakeCredential() throws Exception {
         // 1) Prepare a random clientDataHash
@@ -56,14 +50,14 @@ public class Fido2AppletTest {
         // Relying Party
         CBORObject rp = CBORObject.NewMap();
         rp.Add("id", "working-tarpon-lately.ngrok-free.app");
-        rp.Add("name", "working-tarpon-lately.ngrok-free.ap");
+        rp.Add("name", "working-tarpon-lately.ngrok-free.app");
 
         // User
         byte[] userID = new byte[32];
         rnd.nextBytes(userID);
         CBORObject user = CBORObject.NewMap();
-        user.Add("id", "d2ViYXV0aG5pby1ndXJl");
-        user.Add("displayName", "gure");
+        user.Add("id", Base64.decode("d2ViYXV0aG5pby10ZnZu"));
+        user.Add("displayName", "tfvn");
 
         // pubKeyCredParams [ { type: "public-key", alg: -7 } ]
         CBORObject pubKeyCredParamsItem = CBORObject.NewMap();
@@ -88,11 +82,6 @@ public class Fido2AppletTest {
 
         // 3) Encode to bytes
         byte[] payload = makeCredentialRequest.EncodeToBytes();
-                //Hex.decodeHex("
-        // a4015820d3e3ec9bd761d7f40ddf0d81e7041dce18860751b0e721a2e8d7da60b4cb2d92 02a26269647824776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e617070646e616d65782 4776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e61707003a2626964746432566959585630614735706279316e64584a6c6b646973706c61794e616d6564677572650481a263616c672664747970656a7075626c69632d6b6579");//;
-        // a4015820fa6a4e6ec24c65bc6858d6b6b2d77b6d26712fd35b500456fe940bf8b178f8ea 02a26269647824776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e617070646e616d65782 3776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e617003a2626964746432566959585630614735706279316e64584a6c6b646973706c61794e616d6564677572650481a263616c672664747970656a7075626c69632d6b6579
-        System.out.println(Hex.encodeHexString(payload));
-
 
         // 4) Send CTAP2 makeCredential (CLA=0x00, INS=0x01)
         CommandAPDU cmd = new CommandAPDU(
@@ -103,9 +92,6 @@ public class Fido2AppletTest {
                 payload
         );
 
-        System.out.println(Hex.encodeHexString(cmd.getBytes()));
-        // 8001000097a4015820e529a57643c8f5a12c92ca410c85a39d2eb45cfed324a52bfdaf83767390ef3c02a26269646b6578616d706c652e636f6d646e616d65674578616d706c6503a26269645820770cdf240559fad7b7d639bc3ec9e9a62635425b08e0f25781dafb16d5fc7c0b6b646973706c61794e616d65695465737420557365720481a263616c672664747970656a7075626c69632d6b6579
-        // 80010000
         ResponseAPDU resp = transmit(cmd);
 
         System.out.println(Hex.encodeHexString(resp.getData()));
@@ -125,25 +111,14 @@ public class Fido2AppletTest {
         CBORObject attObj = CBORObject.DecodeFromBytes(trimmedBytes);
         assertTrue(attObj.get("fmt").AsString().length() > 0);
 
-        System.out.println(Hex.encodeHexString(attObj.get("authData").EncodeToBytes()));
-    /*
-        58 a4
-        a379a6f6eeafb9a55e378c118034e2751e682fab9f2d30ab13d2125586ce1947
-        41
-        00000001
-        123456789abcdef01122334455667788
-        0020
-        000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
-        a5010203262001215820982ab6e97a33c43f490ed2b7e3d0462ba2700cc64018d29c03e100f70277980622582068e32ad01bf0edf2093259fc71b77187b9bf34dc85ec9cdd043e6cdb9423fb44
-    */
         assertNotNull(attObj.get("authData"));
     }
 
 
     @Test
     public void testGetAssertion() throws Exception {
-        setup();
-        testMakeCredential();
+        //setup();
+        //testMakeCredential();
 
         SecureRandom rnd = new SecureRandom();
         byte[] clientDataHash = new byte[32];
@@ -158,7 +133,7 @@ public class Fido2AppletTest {
 
         // Assemble main request (CBOR map, integer keys per CTAP2)
         CBORObject getAssertionRequest = CBORObject.NewMap();
-        getAssertionRequest.Add(1, CBORObject.FromObject("example.com"));
+        getAssertionRequest.Add(1, CBORObject.FromObject("working-tarpon-lately.ngrok-free.app"));
         getAssertionRequest.Add(2, CBORObject.FromObject(clientDataHash));
         getAssertionRequest.Add(3, allowList);
 
@@ -172,12 +147,7 @@ public class Fido2AppletTest {
                 payload
         );
 
-        System.out.println(Hex.encodeHexString(cmd.getBytes()));
-
-        //80010000aaa30158201bb5c515a64f3d9612223b02a88da84457580eb11e166afffb540ca5a88dd76502a26269647824776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e617070646e616d657824776f726b696e672d746172706f6e2d6c6174656c792e6e67726f6b2d667265652e61707003a262696477643256695958563061473570627931305a6e526d6447596b646973706c61794e616d6566746674667466
-
         ResponseAPDU resp = transmit(cmd);
-        System.out.println(Hex.encodeHexString(resp.getData()));
 
         // Verify status word OK
         assertEquals(0x9000, resp.getSW());
@@ -186,35 +156,25 @@ public class Fido2AppletTest {
         assertEquals(0x00, resp.getData()[0]);
     }
 
-    /*@Test
-    public void testClientPIN() throws Exception {
-        // CTAP2 INS = 0x06, P1 = getRetries=0x01
-        ResponseAPDU resp = transmit((byte)0x00, (byte)0x06, (byte)0x01, (byte)0x00, null);
-        assertEquals(0x9000, resp.getSW());
-        // data[0] is remaining attempts
-    }
-
     @Test
     public void testReset() throws Exception {
-        // CTAP2 INS = 0x07
-        ResponseAPDU resp = transmit((byte)0x00, (byte)0x07, (byte)0x00, (byte)0x00, null);
+        //setup();
+        testMakeCredential();
+        testGetAssertion();
+        testGetAssertion();
+        testGetAssertion();
+        testGetAssertion();
+        testGetAssertion();
+
+        CommandAPDU cmd = new CommandAPDU(
+                0x80, // CLA
+                0x07, // INS = authenticatorReset
+                0x00, // P1
+                0x00, // P2
+                null // no payload needed
+        );
+
+        ResponseAPDU resp = transmit(cmd);
         assertEquals(0x9000, resp.getSW());
     }
-
-    @Test
-    public void testGetNextAssertion() throws Exception {
-        // call GET_ASSERTION INS=0x02 with allowList that yields multiple creds,
-        // then INS=0x08 for next
-        byte[] payload = CBOR.encodeMap(
-                CBOR.ofString("rpId"), "example.com".getBytes(),
-                CBOR.ofString("clientDataHash"), new byte[32],
-                CBOR.ofString("allowList"), CBOR.ofArray(
-                        CBOR.ofMap(CBOR.ofString("id"), yourCredId)
-                )
-        );
-        transmit((byte)0x00, (byte)0x02, (byte)0x00, (byte)0x00, payload);
-        // now request next
-        ResponseAPDU resp = transmit((byte)0x00, (byte)0x08, (byte)0x00, (byte)0x00, null);
-        assertEquals(0x9000, resp.getSW());
-    }*/
 }
